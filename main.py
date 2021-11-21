@@ -2,7 +2,7 @@ import matplotlib
 import numpy as np
 import shapefile
 from sklearn.preprocessing import normalize
-
+import math
 matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
 
@@ -76,10 +76,9 @@ def has_turn(vector1, vector2):
     return not (x_same_sign and y_same_sign)
 
 
-def find_bound(boundary_shape):
+def split_into_segments(boundary_shape, set_plot=False):
     boundary_list = []
     start_vector = None
-    curr_vector = None
     sp = None
     for i, point in enumerate(boundary_shape.points):
         if i == 0:
@@ -101,11 +100,61 @@ def find_bound(boundary_shape):
         prev_point = point
         if i == (len(boundary_shape.points) - 1):
             boundary_list[-1].append(sp)
-    for boundary in boundary_list:
-        list_x, list_y = zip(*boundary)
-        plt.scatter(list_x, list_y)
-        plt.plot(list_x, list_y)
-    plt.show()
+    if set_plot:
+        for boundary in boundary_list:
+            list_x, list_y = zip(*boundary)
+            plt.scatter(list_x, list_y, alpha=0.3)
+            plt.plot(list_x, list_y, alpha=0.3)
+    return boundary_list
 
 
-find_bound(Shape("Trimble", "Pole"))
+def find_most_long_vector(shape, set_plot=False):
+    max_norm = None
+    max_vect = None
+    max_segm = None
+    for segm in split_into_segments(shape, set_plot):
+        start_point = segm[0]
+        end_point = segm[-1]
+        vect = np.array(end_point) - np.array(start_point)
+        curr_norm = np.linalg.norm(vect)
+        if not max_norm or curr_norm > max_norm:
+            max_norm = curr_norm
+            max_vect = vect
+            max_segm = segm
+    if set_plot:
+        list_x, list_y = zip(*max_segm)
+        plt.scatter(list_x, list_y, alpha=0.5)
+        plt.plot(list_x, list_y, alpha=0.5)
+    return max_vect, max_segm
+
+
+def get_box_middles(shape, set_plot=False):
+    bbox = shape.shp.bbox
+    # like (0, 0):
+    a = np.array([bbox[0], bbox[1]])
+    # like (1, 1):
+    b = np.array([bbox[2], bbox[3]])
+    l = b - a
+    lx = l[0]
+    ly = l[1]
+    if set_plot:
+        rect = matplotlib.patches.Rectangle(a, width=lx, height=ly, color="purple", linewidth=2, fill=False)
+        plt.gca().add_patch(rect)
+    horizontal_middle = a[0] + (lx / 2)
+    vertical_middle = a[1] + (ly / 2)
+    return horizontal_middle, vertical_middle
+
+def chose_clone_line_direction(shape, most_long_vect, max_segm):
+    is_horisontal_direction = np.linalg.norm(most_long_vect)[0] <= math.cos(45)
+    horizontal_middle, vertical_middle = get_box_middles(shape)
+    x_list, y_list = zip(*max_segm)
+    if is_horisontal_direction:
+        y_list
+
+
+
+pole = Shape("Trimble", "Pole")
+most_long_vect, max_segm = find_most_long_vector(pole, True)
+chose_clone_line_direction(pole, most_long_vect, max_segm)
+
+plt.show()
